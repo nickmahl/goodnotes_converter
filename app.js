@@ -20,10 +20,25 @@ async function handleFileSelect(event) {
           // Load the ZIP content
           await zip.loadAsync(e.target.result);
 
+          // Read and parse index.attachments.pb
+          const indexFile = zip.file('index.attachments.pb');
+          let attachmentOrder = [];
+          if (indexFile) {
+            const indexContent = await indexFile.async('string');
+            // Parse the indexContent to extract the ordered list of attachment paths
+            attachmentOrder = parseAttachmentIndex(indexContent);
+            // Normalize attachment paths to remove leading slashes
+            attachmentOrder = attachmentOrder.map(path => path.replace(/^\//, ''));
+          } else {
+            console.warn('index.attachments.pb not found. Using default order.');
+          }
+
           // Get all files in the attachments folder
           const filesInAttachments = [];
           zip.folder('attachments').forEach(function(relativePath, file) {
-            filesInAttachments.push(file);
+            // Construct the full path
+            const fullPath = 'attachments/' + relativePath;
+            filesInAttachments.push({ fullPath: fullPath, file: file });
           });
 
           if (filesInAttachments.length === 0) {
@@ -37,8 +52,8 @@ async function handleFileSelect(event) {
           const totalFiles = filesInAttachments.length;
           const pdfFiles = [];
 
-          for (const file of filesInAttachments) {
-            const content = await file.async('arraybuffer');
+          for (const item of filesInAttachments) {
+            const content = await item.file.async('arraybuffer');
             // Check if the file is a PDF
             const uint8Array = new Uint8Array(content);
             const pdfSignature = [0x25, 0x50, 0x44, 0x46, 0x2D]; // Corresponds to '%PDF-'
@@ -52,7 +67,7 @@ async function handleFileSelect(event) {
             }
 
             if (isPDF) {
-              pdfFiles.push({ file: file, content: content });
+              pdfFiles.push({ fullPath: item.fullPath, file: item.file, content: content });
             }
 
             processedFiles++;
@@ -65,6 +80,31 @@ async function handleFileSelect(event) {
             return;
           }
 
+          // Map the pdfFiles by their full path
+          const pdfFilesMap = new Map();
+          for (const pdfFile of pdfFiles) {
+            pdfFilesMap.set(pdfFile.fullPath, pdfFile);
+          }
+
+          // Reorder pdfFiles based on attachmentOrder
+          if (attachmentOrder.length > 0) {
+            const reorderedPdfFiles = [];
+            for (const attachmentPath of attachmentOrder) {
+              if (pdfFilesMap.has(attachmentPath)) {
+                reorderedPdfFiles.push(pdfFilesMap.get(attachmentPath));
+              } else {
+                console.warn(`Attachment path "${attachmentPath}" not found in pdfFilesMap`);
+              }
+            }
+            if (reorderedPdfFiles.length > 0) {
+              // Replace pdfFiles with the reordered list
+              pdfFiles.length = 0;
+              pdfFiles.push(...reorderedPdfFiles);
+            } else {
+              console.warn('No matching attachments found in pdfFilesMap based on index.attachments.pb');
+            }
+          }
+
           // Provide download links for individual PDFs
           pdfFiles.forEach(function(item, index) {
             const blob = new Blob([item.content], { type: 'application/pdf' });
@@ -72,7 +112,7 @@ async function handleFileSelect(event) {
             const link = document.createElement('a');
             link.href = url;
 
-            // Rename the file to have a .pdf extension
+            // Extract file name from relative path and append .pdf
             const fileName = item.file.name + '.pdf';
             link.download = fileName;
             link.textContent = `Download ${fileName}`;
@@ -140,6 +180,28 @@ async function handleFileSelect(event) {
       showProgressBar(false);
     }
   }
+}
+
+// Updated parseAttachmentIndex function
+function parseAttachmentIndex(indexContent) {
+  const attachmentPaths = [];
+
+  // Split the content into lines
+  const lines = indexContent.split('\n');
+
+  // Regular expression to match attachment paths
+  const regex = /attachments\/[A-Za-z0-9\-]+/g;
+
+  for (let line of lines) {
+    line = line.endsWith('X') ? line.slice(0, -1) : line;
+
+    const matches = line.match(regex);
+    if (matches) {
+      attachmentPaths.push(...matches);
+    }
+  }
+
+  return attachmentPaths;
 }
 
 // Functions to control the progress bar
