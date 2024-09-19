@@ -3,17 +3,93 @@
 <head>
   <meta charset="UTF-8">
   <title>GoodNotes to PDF Converter</title>
-</head>
-<body>
-  <h1>GoodNotes to PDF Converter</h1>
-  <input type="file" id="file-input" accept=".goodnotes" />
-  <div id="output"></div>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Include JSZip library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
   <!-- Include pdf-lib library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
   <!-- Include your script -->
-  <script src="app.js"></script>
+  <script src="app.js" defer></script>
+  <!-- CSS Styling -->
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f7f9fc;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+
+    p {
+      text-align: center;
+      color: #555;
+    }
+
+    #file-input {
+      display: block;
+      margin: 20px auto;
+    }
+
+    #progress-container {
+      display: none;
+      width: 100%;
+      background-color: #e0e0e0;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 20px 0;
+    }
+
+    #progress-bar {
+      width: 0%;
+      height: 20px;
+      background-color: #3498db;
+      transition: width 0.3s ease;
+    }
+
+    #output a {
+      display: block;
+      margin: 10px 0;
+      text-decoration: none;
+      color: #3498db;
+    }
+
+    #output a:hover {
+      text-decoration: underline;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>GoodNotes to PDF Converter</h1>
+    <p>GoodNotes ist cringe.</p>
+    <input type="file" id="file-input" accept=".goodnotes" />
+    <div id="progress-container">
+      <div id="progress-bar"></div>
+    </div>
+    <div id="output"></div>
+  </div>
+  <footer>
+    &copy; 2024 Macher
+  </footer>
 </body>
 </html>

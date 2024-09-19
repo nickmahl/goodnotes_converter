@@ -3,28 +3,42 @@ document.getElementById('file-input').addEventListener('change', handleFileSelec
 async function handleFileSelect(event) {
   const file = event.target.files[0];
   if (file) {
-    // Initialize JSZip
-    const zip = new JSZip();
+    // Reset output and progress bar
+    const outputDiv = document.getElementById('output');
+    outputDiv.innerHTML = '';
+    updateProgressBar(0);
+    showProgressBar(true);
 
-    // Read the file using FileReader
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      // Load the ZIP content
-      zip.loadAsync(e.target.result).then(async function(zip) {
-        // Get all files in the attachments folder
-        const filesInAttachments = [];
-        zip.folder('attachments').forEach(function(relativePath, file) {
-          filesInAttachments.push(file);
-        });
+    try {
+      // Initialize JSZip
+      const zip = new JSZip();
 
-        if (filesInAttachments.length === 0) {
-          alert('No files found in the attachments folder.');
-          return;
-        }
+      // Read the file using FileReader
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        try {
+          // Load the ZIP content
+          await zip.loadAsync(e.target.result);
 
-        // Identify PDF files by checking their content
-        const pdfFilesPromises = filesInAttachments.map(function(file) {
-          return file.async('arraybuffer').then(function(content) {
+          // Get all files in the attachments folder
+          const filesInAttachments = [];
+          zip.folder('attachments').forEach(function(relativePath, file) {
+            filesInAttachments.push(file);
+          });
+
+          if (filesInAttachments.length === 0) {
+            alert('No files found in the attachments folder.');
+            showProgressBar(false);
+            return;
+          }
+
+          // Identify PDF files by checking their content
+          let processedFiles = 0;
+          const totalFiles = filesInAttachments.length;
+          const pdfFiles = [];
+
+          for (const file of filesInAttachments) {
+            const content = await file.async('arraybuffer');
             // Check if the file is a PDF
             const uint8Array = new Uint8Array(content);
             const pdfSignature = [0x25, 0x50, 0x44, 0x46, 0x2D]; // Corresponds to '%PDF-'
@@ -38,29 +52,20 @@ async function handleFileSelect(event) {
             }
 
             if (isPDF) {
-              return { file: file, content: content };
-            } else {
-              return null;
+              pdfFiles.push({ file: file, content: content });
             }
-          });
-        });
 
-        // Wait for all checks to complete
-        Promise.all(pdfFilesPromises).then(async function(results) {
-          // Filter out non-PDF files
-          const pdfFiles = results.filter(function(item) {
-            return item !== null;
-          });
+            processedFiles++;
+            updateProgressBar((processedFiles / totalFiles) * 50); // Updating progress to 50% during extraction
+          }
 
           if (pdfFiles.length === 0) {
             alert('No PDF files found in the attachments folder.');
+            showProgressBar(false);
             return;
           }
 
           // Provide download links for individual PDFs
-          const outputDiv = document.getElementById('output');
-          outputDiv.innerHTML = ''; // Clear previous output
-
           pdfFiles.forEach(function(item, index) {
             const blob = new Blob([item.content], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
@@ -72,19 +77,28 @@ async function handleFileSelect(event) {
             link.download = fileName;
             link.textContent = `Download ${fileName}`;
             outputDiv.appendChild(link);
-            outputDiv.appendChild(document.createElement('br'));
           });
+
+          // Update progress bar to 75%
+          updateProgressBar(75);
 
           // If there are multiple PDFs, offer a combined PDF download
           if (pdfFiles.length > 1) {
             // Merge PDFs using pdf-lib
             const mergedPdf = await PDFLib.PDFDocument.create();
 
+            let mergedProcessed = 0;
+            const totalMerges = pdfFiles.length;
+
             for (const item of pdfFiles) {
               const pdfBytes = item.content;
               const pdf = await PDFLib.PDFDocument.load(pdfBytes);
               const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
               copiedPages.forEach((page) => mergedPdf.addPage(page));
+
+              mergedProcessed++;
+              // Update progress bar between 75% and 100%
+              updateProgressBar(75 + (mergedProcessed / totalMerges) * 25);
             }
 
             const mergedPdfBytes = await mergedPdf.save();
@@ -99,18 +113,47 @@ async function handleFileSelect(event) {
             outputDiv.appendChild(document.createElement('br'));
             outputDiv.appendChild(mergedLink);
           }
-        });
-      }, function(err) {
-        alert('Failed to read the GoodNotes file. It may be corrupted.');
+
+          // Update progress bar to 100%
+          updateProgressBar(100);
+
+          // Hide progress bar after a short delay
+          setTimeout(() => showProgressBar(false), 500);
+
+        } catch (err) {
+          alert('Failed to process the GoodNotes file. It may be corrupted.');
+          console.error(err);
+          showProgressBar(false);
+        }
+      };
+
+      reader.onerror = function(err) {
+        alert('Error reading file.');
         console.error(err);
-      });
-    };
+        showProgressBar(false);
+      };
 
-    reader.onerror = function(err) {
-      alert('Error reading file.');
+      reader.readAsArrayBuffer(file);
+    } catch (err) {
+      alert('An error occurred while processing the file.');
       console.error(err);
-    };
+      showProgressBar(false);
+    }
+  }
+}
 
-    reader.readAsArrayBuffer(file);
+// Functions to control the progress bar
+function updateProgressBar(percentage) {
+  const progressBar = document.getElementById('progress-bar');
+  progressBar.style.width = percentage + '%';
+}
+
+function showProgressBar(show) {
+  const progressContainer = document.getElementById('progress-container');
+  if (show) {
+    progressContainer.style.display = 'block';
+  } else {
+    progressContainer.style.display = 'none';
+    updateProgressBar(0);
   }
 }
